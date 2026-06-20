@@ -4,7 +4,22 @@ import(
 	"fmt"
 	"net/http"
 	"io"
+	"encoding/json"
 )
+
+type AAResponse struct{
+	USDBRL Moeda `json:"USDBRL"`
+}
+
+type Moeda struct{
+	Cotacao string `json:"bid"`
+}
+
+type MinhaResposta struct{
+	Moeda string `json:"moeda"`
+	Cotacao string `json:"cotacao"`
+}
+
 
 func main(){
 	fmt.Println("[SERVIDOR] - INICIALIZANDO...")
@@ -38,7 +53,23 @@ func cotacao(w http.ResponseWriter, r *http.Request){
 		panic(err)
 	}
 
-	w.Write(data)
+	var cotacao AAResponse
+
+	err = json.Unmarshal(data, &cotacao)
+	if err != nil{
+		panic(err)
+	}
+
+	dadosNovos := MinhaResposta{
+		Moeda: "USDBRL",
+		Cotacao: cotacao.USDBRL.Cotacao,
+	}
+
+	err = json.NewEncoder(w).Encode(dadosNovos)
+
+	if err != nil{
+		panic(err)
+	}
 
 }
 
