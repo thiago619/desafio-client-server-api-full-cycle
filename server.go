@@ -5,6 +5,10 @@ import(
 	"net/http"
 	"io"
 	"encoding/json"
+	_ "github.com/ncruces/go-sqlite3/driver"
+    _ "github.com/ncruces/go-sqlite3/embed"
+    "database/sql"
+    "context"
 )
 
 type AAResponse struct{
@@ -65,11 +69,44 @@ func cotacao(w http.ResponseWriter, r *http.Request){
 		Cotacao: cotacao.USDBRL.Cotacao,
 	}
 
+	err = RegistrarCotacao(r.Context(),dadosNovos)
+	if err != nil{
+		panic(err)
+	}
+
 	err = json.NewEncoder(w).Encode(dadosNovos)
 
 	if err != nil{
 		panic(err)
 	}
 
+}
+
+func RegistrarCotacao(ctx context.Context, cotacao MinhaResposta) error{
+	select{
+	case <- ctx.Done():
+		return ctx.Err()
+	default:
+		db, err := sql.Open("sqlite3","file:database.sqlite")
+		if err != nil{
+			return err
+		}
+		query := "CREATE TABLE IF NOT EXISTS cotacoes(id INTEGER PRIMARY KEY, moeda TEXT NOT NULL,valor NUMERIC NOT NULL,data_hora TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+		defer db.Close()
+		_, err = db.Exec(query)
+		if err != nil{
+			return err
+		}
+		stmt,err := db.Prepare("INSERT INTO cotacoes(moeda,valor) VALUES(?,?)")
+		if err != nil{
+			return err
+		}
+		defer stmt.Close()
+		_,err = stmt.Exec(cotacao.Moeda,cotacao.Cotacao)
+		if err != nil{
+			return err
+		}
+		return nil
+	}
 }
 
