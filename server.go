@@ -5,7 +5,6 @@ import(
 	"io"
 	"encoding/json"
 	_ "github.com/ncruces/go-sqlite3/driver"
-    _ "github.com/ncruces/go-sqlite3/embed"
     "database/sql"
     "context"
     "time"
