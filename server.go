@@ -9,6 +9,7 @@ import(
     _ "github.com/ncruces/go-sqlite3/embed"
     "database/sql"
     "context"
+    "time"
 )
 
 type AAResponse struct{
@@ -27,12 +28,18 @@ type MinhaResposta struct{
 
 func main(){
 	fmt.Println("[SERVIDOR] - INICIALIZANDO...")
+	err := criarDatabase()
+
+	if err != nil{
+		fmt.Println(err)
+		panic(err)
+	}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /cotacao",cotacao)
 
-	err := http.ListenAndServe(":8080",mux)
+	err = http.ListenAndServe(":8080",mux)
 
 	if(err != nil){
 		fmt.Println(err)
@@ -68,8 +75,9 @@ func cotacao(w http.ResponseWriter, r *http.Request){
 		Moeda: "USDBRL",
 		Cotacao: cotacao.USDBRL.Cotacao,
 	}
-
-	err = RegistrarCotacao(r.Context(),dadosNovos)
+	ctxDb,ctxDbCancel := context.WithTimeout(r.Context(),10*time.Millisecond)
+	defer ctxDbCancel()
+	err = RegistrarCotacao(ctxDb,dadosNovos)
 	if err != nil{
 		panic(err)
 	}
@@ -83,30 +91,33 @@ func cotacao(w http.ResponseWriter, r *http.Request){
 }
 
 func RegistrarCotacao(ctx context.Context, cotacao MinhaResposta) error{
-	select{
-	case <- ctx.Done():
-		return ctx.Err()
-	default:
-		db, err := sql.Open("sqlite3","file:database.sqlite")
-		if err != nil{
-			return err
-		}
-		query := "CREATE TABLE IF NOT EXISTS cotacoes(id INTEGER PRIMARY KEY, moeda TEXT NOT NULL,valor NUMERIC NOT NULL,data_hora TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
-		defer db.Close()
-		_, err = db.Exec(query)
-		if err != nil{
-			return err
-		}
-		stmt,err := db.Prepare("INSERT INTO cotacoes(moeda,valor) VALUES(?,?)")
-		if err != nil{
-			return err
-		}
-		defer stmt.Close()
-		_,err = stmt.Exec(cotacao.Moeda,cotacao.Cotacao)
-		if err != nil{
-			return err
-		}
-		return nil
+	db, err := sql.Open("sqlite3","file:database.sqlite")
+	if err != nil{
+		return err
 	}
+	defer db.Close()
+	stmt,err := db.PrepareContext(ctx,"INSERT INTO cotacoes(moeda,valor) VALUES(?,?)")
+	if err != nil{
+		return err
+	}
+	defer stmt.Close()
+	_,err = stmt.ExecContext(ctx,cotacao.Moeda,cotacao.Cotacao)
+	if err != nil{
+		return err
+	}
+	return nil
 }
 
+func criarDatabase() error{
+	db, err := sql.Open("sqlite3","file:database.sqlite")
+	if err != nil{
+		return err
+	}
+	query := "CREATE TABLE IF NOT EXISTS cotacoes(id INTEGER PRIMARY KEY, moeda TEXT NOT NULL,valor NUMERIC NOT NULL,data_hora TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+	defer db.Close()
+	_, err = db.Exec(query)
+	if err != nil{
+		return err
+	}
+	return nil
+}
