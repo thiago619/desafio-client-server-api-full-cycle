@@ -27,18 +27,21 @@ type MinhaResposta struct{
 
 
 func main(){
-	fmt.Println("[SERVIDOR] - INICIALIZANDO...")
+	fmt.Println("iniciando o servidor")
+	fmt.Println("iniciando o banco de dados")
 	err := criarDatabase()
 
 	if err != nil{
 		fmt.Println(err)
 		panic(err)
 	}
+	fmt.Println("banco de dados iniciado com sucesso")
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /cotacao",cotacao)
 
+	fmt.Println("servidor iniciado com sucesso")
 	err = http.ListenAndServe(":8080",mux)
 
 	if(err != nil){
@@ -49,7 +52,11 @@ func main(){
 func cotacao(w http.ResponseWriter, r *http.Request){
 	client := &http.Client{}
 	url := "https://economia.awesomeapi.com.br/json/last/USD-BRL"
-	req, err := http.NewRequest("GET",url,nil)
+
+	ctxReq, cancelCtxReq := context.WithTimeout(r.Context(), 300 * time.Millisecond)
+	defer cancelCtxReq()
+
+	req, err := http.NewRequestWithContext(ctxReq, "GET",url,nil)
 	if err != nil{
 		panic(err)
 	}
