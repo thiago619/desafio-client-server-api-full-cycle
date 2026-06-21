@@ -33,3 +33,4 @@ go.work.sum
 
 *.sqlite
 *.sqlite-journal
+cotacao.txt

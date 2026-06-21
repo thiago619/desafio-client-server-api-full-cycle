@@ -7,6 +7,8 @@ import(
 	"time"
 	"io"
 	"log"
+	"os"
+	"fmt"
 )
 
 type MinhaResposta struct{
@@ -18,7 +20,7 @@ func main(){
 	client := &http.Client{}
 	url := "http://localhost:8080/cotacao"
 
-	ctxReq, cancelCtxReq := context.WithTimeout(context.Background(), 3 * time.Millisecond)
+	ctxReq, cancelCtxReq := context.WithTimeout(context.Background(), 300 * time.Millisecond)
 	defer cancelCtxReq()
 
 	req, err := http.NewRequestWithContext(ctxReq, "GET",url,nil)
@@ -55,5 +57,12 @@ func main(){
 }
 
 func RegistrarCotacao(cotacao MinhaResposta) error{
-	return nil
+	f, err := os.OpenFile("cotacao.txt",os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil{
+		return err
+	}
+	defer f.Close()
+	linha := fmt.Sprintf("Dólar: %s\n", cotacao.Cotacao)
+	_, err = f.WriteString(linha)
+	return err
 }
