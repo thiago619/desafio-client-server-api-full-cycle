@@ -1,7 +1,6 @@
 package main
 
 import(
-	"fmt"
 	"net/http"
 	"io"
 	"encoding/json"
@@ -10,6 +9,7 @@ import(
     "database/sql"
     "context"
     "time"
+    "log"
 )
 
 type AAResponse struct{
@@ -25,27 +25,30 @@ type MinhaResposta struct{
 	Cotacao string `json:"cotacao"`
 }
 
+type HttpError struct{
+	Erro string `json:"erro"`
+}
+
 
 func main(){
-	fmt.Println("iniciando o servidor")
-	fmt.Println("iniciando o banco de dados")
+	log.Println("[info] iniciando o servidor")
+	log.Println("[info] iniciando o banco de dados")
 	err := criarDatabase()
 
 	if err != nil{
-		fmt.Println(err)
-		panic(err)
+		log.Panic(err)
 	}
-	fmt.Println("banco de dados iniciado com sucesso")
+	log.Println("[info] banco de dados iniciado com sucesso")
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /cotacao",cotacao)
 
-	fmt.Println("servidor iniciado com sucesso")
+	log.Println("[info] servidor iniciado com sucesso")
 	err = http.ListenAndServe(":8080",mux)
 
 	if(err != nil){
-		fmt.Println(err)
+		log.Panic(err)
 	}
 }
 
@@ -59,24 +62,28 @@ func cotacao(w http.ResponseWriter, r *http.Request){
 
 	req, err := http.NewRequestWithContext(ctxReq, "GET",url,nil)
 	if err != nil{
-		panic(err)
+		LogHttpError(w,err)
+		return
 	}
 	resp, err := client.Do(req)
 	if err != nil{
-		panic(err)
+		LogHttpError(w,err)
+		return
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil{
-		panic(err)
+		LogHttpError(w,err)
+		return
 	}
 
 	var cotacao AAResponse
 
 	err = json.Unmarshal(data, &cotacao)
 	if err != nil{
-		panic(err)
+		LogHttpError(w,err)
+		return
 	}
 
 	dadosNovos := MinhaResposta{
@@ -87,13 +94,15 @@ func cotacao(w http.ResponseWriter, r *http.Request){
 	defer ctxDbCancel()
 	err = RegistrarCotacao(ctxDb,dadosNovos)
 	if err != nil{
-		panic(err)
+		LogHttpError(w,err)
+		return
 	}
 
 	err = json.NewEncoder(w).Encode(dadosNovos)
 
 	if err != nil{
-		panic(err)
+		LogHttpError(w,err)
+		return
 	}
 
 }
@@ -128,4 +137,10 @@ func criarDatabase() error{
 		return err
 	}
 	return nil
+}
+
+func LogHttpError(w http.ResponseWriter, err error){
+	w.WriteHeader(http.StatusInternalServerError)
+	log.Printf("[erro] %v",err)
+	json.NewEncoder(w).Encode(HttpError{Erro: err.Error()})
 }
